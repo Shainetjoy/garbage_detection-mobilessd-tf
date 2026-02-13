@@ -1,0 +1,29 @@
+{
+  "classes": [
+    "cardboard",
+    "clothes",
+    "glass",
+    "paper",
+    "plastic",
+    "shoes",
+    "trash"
+  ],
+  "class_to_idx": {
+    "cardboard": 0,
+    "clothes": 1,
+    "glass": 2,
+    "paper": 3,
+    "plastic": 4,
+    "shoes": 5,
+    "trash": 6
+  },
+  "idx_to_class": {
+    "0": "cardboard",
+    "1": "clothes",
+    "2": "glass",
+    "3": "paper",
+    "4": "plastic",
+    "5": "shoes",
+    "6": "trash"
+  }
+}

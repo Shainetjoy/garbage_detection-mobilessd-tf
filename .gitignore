@@ -1,0 +1,71 @@
+# Datasets - DO NOT UPLOAD
+dataset/
+Try/dataset/
+Try/train/
+Try/val/
+*.cache
+
+# Virtual Environment
+garbage_tf_env/
+venv/
+env/
+ENV/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Predictions and outputs
+predictions/
+runs/
+saved_models/
+*.jpg
+*.jpeg
+*.png
+!models/*.pth
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Model checkpoints (keep only best_model.pth)
+models/checkpoint_*.pth
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+
