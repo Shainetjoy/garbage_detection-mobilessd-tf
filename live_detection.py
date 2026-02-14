@@ -147,17 +147,19 @@ class LiveWasteDetector:
         
         return frame
     
-    def detect_webcam(self, camera_index=0, conf_threshold=0.3, save_dir='predictions'):
-        """Live detection from webcam with enhanced UI"""
+    def detect_webcam(self, camera_index=0, conf_threshold=0.3, save_dir='predictions', skip_frames=5):
+        """Live detection from webcam with frame skipping for better performance"""
         print("\n" + "=" * 60)
         print("Starting Live Detection")
         print("=" * 60)
         print(f"Camera: {camera_index}")
         print(f"Confidence Threshold: {conf_threshold:.0%}")
+        print(f"Frame Skip: Processing every {skip_frames} frames")
         print("\nControls:")
         print("  Q - Quit")
         print("  S - Save current frame")
         print("  C - Capture and save")
+        print("  +/- - Increase/Decrease frame skip (1-30)")
         print("=" * 60)
         
         cap = cv2.VideoCapture(camera_index)
@@ -180,6 +182,11 @@ class LiveWasteDetector:
         fps = 0
         inference_times = []
         
+        # Store last prediction to display on skipped frames
+        last_predicted_class = "Waiting..."
+        last_confidence_score = 0.0
+        last_probabilities = None
+        
         print("\nLive detection started! Press 'Q' to quit.\n")
         
         try:
@@ -189,24 +196,37 @@ class LiveWasteDetector:
                     print("Error: Could not read frame from camera")
                     break
                 
-                # Predict
-                inference_start = time.time()
-                predicted_class, confidence_score, probabilities = self.predict_frame(frame)
-                inference_time = (time.time() - inference_start) * 1000  # in ms
-                inference_times.append(inference_time)
+                # Only predict every N frames
+                if frame_count % skip_frames == 0:
+                    # Predict on this frame
+                    inference_start = time.time()
+                    predicted_class, confidence_score, probabilities = self.predict_frame(frame)
+                    inference_time = (time.time() - inference_start) * 1000  # in ms
+                    inference_times.append(inference_time)
+                    
+                    # Update last prediction
+                    last_predicted_class = predicted_class
+                    last_confidence_score = confidence_score
+                    last_probabilities = probabilities
+                    
+                    # Calculate FPS (average over last 30 frames)
+                    if len(inference_times) >= 30:
+                        fps = 30 / (time.time() - fps_start_time)
+                        fps_start_time = time.time()
+                        avg_inference = np.mean(inference_times[-30:])
+                        print(f"FPS: {fps:.1f} | Avg Inference: {avg_inference:.1f}ms | "
+                              f"Current: {predicted_class} ({confidence_score:.1%}) | Skip: {skip_frames}")
                 
-                # Calculate FPS (average over last 30 frames)
-                frame_count += 1
-                if frame_count % 30 == 0:
-                    fps = 30 / (time.time() - fps_start_time)
-                    fps_start_time = time.time()
-                    avg_inference = np.mean(inference_times[-30:])
-                    print(f"FPS: {fps:.1f} | Avg Inference: {avg_inference:.1f}ms | "
-                          f"Current: {predicted_class} ({confidence_score:.1%})")
+                # Draw last prediction on current frame (even if we skipped detection)
+                frame = self.draw_prediction(frame, last_predicted_class, last_confidence_score, 
+                                            last_probabilities if last_probabilities is not None else 
+                                            torch.zeros(len(self.classes)), fps)
                 
-                # Draw predictions on frame
-                frame = self.draw_prediction(frame, predicted_class, confidence_score, 
-                                            probabilities, fps)
+                # Add frame skip indicator
+                h, w = frame.shape[:2]
+                skip_text = f"Frame Skip: {skip_frames} (Press +/- to adjust)"
+                cv2.putText(frame, skip_text, (10, h - 40), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200), 1)
                 
                 # Show frame
                 cv2.imshow('Live Waste Classification', frame)
@@ -218,10 +238,20 @@ class LiveWasteDetector:
                 elif key == ord('s') or key == ord('S') or key == ord('c') or key == ord('C'):
                     # Save current frame
                     timestamp = time.strftime("%Y%m%d_%H%M%S")
-                    filename = f"{predicted_class}_{confidence_score:.2f}_{timestamp}.jpg"
+                    filename = f"{last_predicted_class}_{last_confidence_score:.2f}_{timestamp}.jpg"
                     filepath = save_path / filename
                     cv2.imwrite(str(filepath), frame)
                     print(f"Frame saved: {filepath}")
+                elif key == ord('+') or key == ord('='):
+                    # Increase frame skip
+                    skip_frames = min(30, skip_frames + 1)
+                    print(f"Frame skip increased to: {skip_frames}")
+                elif key == ord('-') or key == ord('_'):
+                    # Decrease frame skip
+                    skip_frames = max(1, skip_frames - 1)
+                    print(f"Frame skip decreased to: {skip_frames}")
+                
+                frame_count += 1
         
         except KeyboardInterrupt:
             print("\nStopping live detection...")
@@ -233,6 +263,7 @@ class LiveWasteDetector:
                 avg_inference = np.mean(inference_times)
                 print(f"\nAverage inference time: {avg_inference:.2f} ms")
                 print(f"Average FPS: {1000/avg_inference:.1f}")
+                print(f"Final frame skip: {skip_frames}")
             print("Live detection stopped.")
     
     def detect_image(self, image_path, show=True, save=True):
@@ -308,6 +339,8 @@ def main():
                        help='Camera index (default: 0)')
     parser.add_argument('--conf', type=float, default=0.3,
                        help='Confidence threshold (default: 0.3)')
+    parser.add_argument('--skip', type=int, default=5,
+                       help='Process every N frames (default: 5, higher = faster)')
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu',
                        help='Device to use (cuda/cpu)')
     parser.add_argument('--no-show', action='store_true',
@@ -321,7 +354,7 @@ def main():
         detector = LiveWasteDetector(args.model, device=args.device)
         
         if args.webcam:
-            detector.detect_webcam(args.camera, args.conf)
+            detector.detect_webcam(args.camera, args.conf, skip_frames=args.skip)
         elif args.image:
             detector.detect_image(
                 args.image,
@@ -338,9 +371,11 @@ def main():
             print("\nOptions:")
             print("  --camera N    Camera index (default: 0)")
             print("  --conf X      Confidence threshold (default: 0.3)")
+            print("  --skip N      Process every N frames (default: 5, higher = faster)")
             print("  --device      cuda or cpu (default: auto)")
             print("\nExample:")
             print("  python live_detection.py --webcam")
+            print("  python live_detection.py --webcam --skip 10  # Process every 10 frames")
             print("  python live_detection.py --image test.jpg --conf 0.5")
             parser.print_help()
     
