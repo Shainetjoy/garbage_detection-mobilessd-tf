@@ -125,13 +125,14 @@ class ObjectDetector:
         
         return predicted_class, confidence_score, probabilities
     
-    def detect_webcam(self, camera_index=0, conf_threshold=0.5, skip_frames=5):
+    def detect_webcam(self, camera_index=0, conf_threshold=0.5, skip_frames=5, min_conf=0.70, max_conf=0.85):
         """Live object detection from webcam"""
         print("\n" + "=" * 60)
         print("Starting Live Object Detection")
         print("=" * 60)
         print(f"Camera: {camera_index}")
         print(f"Confidence Threshold: {conf_threshold:.0%}")
+        print(f"Display Range: {min_conf:.0%} - {max_conf:.0%} (only show boxes in this range)")
         print(f"Frame Skip: Processing every {skip_frames} frames")
         print("\nControls:")
         print("  Q - Quit")
@@ -178,12 +179,14 @@ class ObjectDetector:
                     for bbox in objects:
                         predicted_class, confidence, probabilities = self.classify_object(frame, bbox)
                         
+                        # Only show if confidence is between min_conf and max_conf
                         if predicted_class and confidence >= conf_threshold:
-                            detected_items.append({
-                                'bbox': bbox,
-                                'class': predicted_class,
-                                'confidence': confidence
-                            })
+                            if min_conf <= confidence <= max_conf:
+                                detected_items.append({
+                                    'bbox': bbox,
+                                    'class': predicted_class,
+                                    'confidence': confidence
+                                })
                 
                 # Draw only detected objects
                 output_frame = frame.copy()
@@ -284,7 +287,11 @@ def main():
     parser.add_argument('--camera', type=int, default=0,
                        help='Camera index (default: 0)')
     parser.add_argument('--conf', type=float, default=0.5,
-                       help='Confidence threshold (default: 0.5)')
+                       help='Minimum confidence threshold for detection (default: 0.5)')
+    parser.add_argument('--min-conf', type=float, default=0.70,
+                       help='Minimum confidence to display bounding box (default: 0.70)')
+    parser.add_argument('--max-conf', type=float, default=0.85,
+                       help='Maximum confidence to display bounding box (default: 0.85)')
     parser.add_argument('--skip', type=int, default=5,
                        help='Process every N frames (default: 5)')
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu',
@@ -296,7 +303,7 @@ def main():
         detector = ObjectDetector(args.model, device=args.device)
         
         if args.webcam:
-            detector.detect_webcam(args.camera, args.conf, args.skip)
+            detector.detect_webcam(args.camera, args.conf, args.skip, args.min_conf, args.max_conf)
         else:
             print("\n" + "=" * 60)
             print("Live Object Detection for Waste Classification")
@@ -304,11 +311,14 @@ def main():
             print("\nUsage:")
             print("  python object_detection_live.py --webcam")
             print("\nOptions:")
-            print("  --camera N    Camera index (default: 0)")
-            print("  --conf X      Confidence threshold (default: 0.5)")
-            print("  --skip N      Process every N frames (default: 5)")
+            print("  --camera N       Camera index (default: 0)")
+            print("  --conf X         Minimum confidence for detection (default: 0.5)")
+            print("  --min-conf X     Minimum confidence to display box (default: 0.70)")
+            print("  --max-conf X     Maximum confidence to display box (default: 0.85)")
+            print("  --skip N         Process every N frames (default: 5)")
             print("\nExample:")
-            print("  python object_detection_live.py --webcam --conf 0.6")
+            print("  python object_detection_live.py --webcam")
+            print("  python object_detection_live.py --webcam --min-conf 0.70 --max-conf 0.85")
             parser.print_help()
     
     except FileNotFoundError as e:
