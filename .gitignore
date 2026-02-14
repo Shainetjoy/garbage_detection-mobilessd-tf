@@ -5,6 +5,9 @@ Try/train/
 Try/val/
 *.cache
 
+# Binaries
+bin/
+
 # Virtual Environment
 garbage_tf_env/
 venv/
